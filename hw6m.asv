@@ -9,8 +9,6 @@ dt_b = 1/fb; % bit period (how long between bits)
 t = 0:dt:(dt_b*N); % time range -- not sure if this is right
 % upper limit is the number of bit periods times the number of bits
 
-
-sigma = 1; % noise parameter for part e
 %% PART A -- need graphs, etc
 t_pulse = -Tp:dt:Tp;
 p = 1-abs(t_pulse./Tp);
@@ -65,22 +63,19 @@ figure,plot(y_crop)
 % something, maybe it could be fixed in part a
 
 
-
-% Thomas
 % How I think x should be generated: u take the bits defined in c, and put
 % them into an array along with time. every Ts time, there will be one of
 % the spikes corresponding to one in bits
-% result is kinda same as urs evan, but maybe its more general? idk
 
 
 % tx = t_pulse;
 
-% makes a time vector of appropriate length. I chose Ts arbitrarily
-Ts = 0.2;
-tx = 0:dt:(N)*Ts;
+% makes a time vector of appropriate length
+Ts = 0.12;
+tx = 0:dt:(N-1)*Ts;
 xner = zeros(size(tx));
 for i=0:N-1
-    xner(abs(tx - i * Ts) < .0001) = bits(i+1);
+    xner(tx == i * Ts) = bits(i+1);
 end
 y_conv = conv(xner, p);
 % if length(xner) > length(p)
@@ -90,7 +85,3 @@ y_conv = conv(xner, p);
 % end
 
 figure, plot(y_conv)
-
-%% part E
-nt = sigma*randn(1,length(y_conv));
-rt = nt + y_conv;
