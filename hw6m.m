@@ -89,8 +89,46 @@ y_conv = conv(xner, p);
 %     y_conv = conv(p, xner, 'same');
 % end
 
-figure, plot(y_conv)
+
+figure
+hold on
+plot([zeros(1, floor(length(p)/2)) xner zeros(1, floor(length(p)/2))] )
+plot(y_conv)
 
 %% part E
 nt = sigma*randn(1,length(y_conv));
 rt = nt + y_conv;
+figure, plot(rt)
+%% part F
+tx2 = -Tp:dt:(N)*Ts + Tp;
+xhat = zeros(size(rt));
+xhater = zeros(size(rt));
+
+pnegt = flip(p);
+zn = conv(rt, pnegt, "same");
+
+for i=0:N-1
+    index = find(abs(tx2 - i* Ts) < .001);
+    if rt(index) > 0
+        xhat(index) = 1;
+    else
+        xhat(index) = -1;
+    end
+
+
+    if zn(index) > 0
+        xhater(index) = 1;
+    else
+        xhater(index) = -1;
+    end
+
+end
+figure, plot(xhat)
+
+
+figure, plot(zn)
+figure, plot(xhater)
+
+Py = sum(y_conv.^2 * dt);
+Pn = sum(nt.^2 * dt);
+disp("SNR: " + Py/Pn)
