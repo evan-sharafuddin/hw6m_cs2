@@ -129,6 +129,30 @@ figure, plot(xhat)
 figure, plot(zn)
 figure, plot(xhater)
 
+
+
+%% Part g
+% i
+figure;
+plot(t_pulse, p);
+
+% TODO plot fft and hand calculate fft
+
+% ii
+figure;
+plot(tx2, y_conv)
+
+% iii
+figure;
+plot(tx2, rt);
+
+% iv
+figure;
+plot(tx2, xhat);
+figure;
+plot(tx2, xhater);
+
+% v
 Py = sum(y_conv.^2 * dt);
 Pn = sum(nt.^2 * dt);
 disp("SNR: " + Py/Pn)
