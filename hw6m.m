@@ -177,13 +177,17 @@ disp("sign-based reciever error rate: " + error_rate_sign);
 disp("matched filter error rate: " + error_rate_matched);
 
 %% part 2
-sigmarray = 0:.1:1;
-snrs = zeros(size(sigmarray));
-errorSign = zeros(size(sigmarray));
-errorMatch = zeros(size(sigmarray));
+
+% cycle through the different fb
 for inter = 1:2
     fb = 1/inter/Tp;
+    sigmarray = 0:.1:1;
+    snrs = zeros(size(sigmarray));
+    errorSign = zeros(size(sigmarray));
+    errorMatch = zeros(size(sigmarray));
+    % cycle through sigmas
     for in = 1:length(sigmarray)
+        % do stuff that i copied from above
         thisig = sigmarray(in);
     
         bits = 2*((rand(1,N)<0.5)-0.5);
