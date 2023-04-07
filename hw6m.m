@@ -169,7 +169,7 @@ disp("SNR: " + Py/Pn);
 
 % error rate calculations
 xn_sign = xhat(xhat ~= 0);
-xn_matched = xhat_matched(xhat ~= 0);
+xn_matched = xhat_matched(xhat_matched ~= 0);
 error_rate_sign = sum(xn_sign ~= bits)/N;
 error_rate_matched = sum(xn_matched ~= bits)/N;
 
@@ -177,7 +177,15 @@ disp("sign-based reciever error rate: " + error_rate_sign);
 disp("matched filter error rate: " + error_rate_matched);
 
 %% part 2
+% param
+N = 40; % number of bits
+Tp = 0.1; % half the pulse width
+dt = Tp/50; % sampling frequency -- keep this constant
+dt_b = 1/fb; % bit period (how long between bits)
+t = 0:dt:(dt_b*N); % time range -- not sure if this is right
 
+t_pulse = -Tp:dt:Tp;
+p = 1-abs(t_pulse./Tp);
 % cycle through the different fb
 for inter = 1:2
     fb = 1/inter/Tp;
@@ -237,9 +245,11 @@ for inter = 1:2
             snrs(in) = 0;
         end
         xn_sign = xhat(xhat ~= 0);
-        xn_matched = xhat_matched(xhat ~= 0);
+        xn_matched = xhat_matched(xhat_matched ~= 0);
         error_rate_sign = sum(xn_sign ~= bits)/N;
         error_rate_matched = sum(xn_matched ~= bits)/N;
+        errorSign(in) = error_rate_sign;
+        errorMatch(in) = error_rate_matched;
     end
     figure;
     hold on
@@ -247,4 +257,6 @@ for inter = 1:2
     plot(errorMatch, snrs);
     ylabel("snr");
     xlabel("error");
+    title("fb = 1/" + inter + "Tp");
+    legend("Sign", "Matched");
 end
