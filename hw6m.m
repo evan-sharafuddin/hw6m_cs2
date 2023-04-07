@@ -18,6 +18,11 @@ p = 1-abs(t_pulse./Tp);
 
 plot(t_pulse,p)
 
+transform = fft(p);
+Fs = 1/dt;
+f = Fs * (0:length(transform)-1)/length(transform);
+
+
 
 %% PART C
 % testing: bits = 2*((rand(1,N)<0.5)-0.5);
@@ -78,28 +83,38 @@ figure,plot(y_crop)
 % makes a time vector of appropriate length. I chose Ts arbitrarily
 Ts = 0.2;
 tx = 0:dt:(N)*Ts;
+
+% insert the message onto xn, put a spike every Ts seconds
 xner = zeros(size(tx));
 for i=0:N-1
     xner(abs(tx - i * Ts) < .0001) = bits(i+1);
 end
+% calculate the convolution
 y_conv = conv(xner, p);
+
+
 % if length(xner) > length(p)
 %     y_conv = conv(xner, p, 'same');
 % else
 %     y_conv = conv(p, xner, 'same');
 % end
 
-
+% plot it against the original impulse message. append zeros. the
+% convolution will increase size of axis by half of the size of triangle
+% (Tp) on both sides, so add that on
 figure
 hold on
 plot([zeros(1, floor(length(p)/2)) xner zeros(1, floor(length(p)/2))] )
 plot(y_conv)
 
 %% part E
+% add noise as specified
 nt = sigma*randn(1,length(y_conv));
 rt = nt + y_conv;
 figure, plot(rt)
 %% part F
+
+% make a new time axis, again, time is increased by Tp on both sides
 tx2 = -Tp:dt:(N)*Ts + Tp;
 xhat = zeros(size(rt));
 xhater = zeros(size(rt));
@@ -107,6 +122,7 @@ xhater = zeros(size(rt));
 pnegt = flip(p);
 zn = conv(rt, pnegt, "same");
 
+% make the zero array then add the +1 or -1 as described in the doc
 for i=0:N-1
     index = find(abs(tx2 - i* Ts) < .001);
     if rt(index) > 0
@@ -137,6 +153,11 @@ figure;
 plot(t_pulse, p);
 
 % TODO plot fft and hand calculate fft
+figure
+subplot(2, 1, 1)
+plot(f, abs(transform))
+subplot(2, 1, 2)
+plot(f, angle(transform))
 
 % ii
 figure;
