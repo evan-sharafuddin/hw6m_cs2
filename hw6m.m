@@ -176,4 +176,66 @@ error_rate_matched = sum(xn_matched ~= bits)/N;
 disp("sign-based reciever error rate: " + error_rate_sign);
 disp("matched filter error rate: " + error_rate_matched);
 
+%% part 2
+sigmarray = 0:.1:1;
+snrs = zeros(size(sigmarray));
+errorSign = zeros(size(sigmarray));
+errorMatch = zeros(size(sigmarray));
+for in = 1:length(sigmarray)
+    thisig = sigmarray(in);
 
+    bits = 2*((rand(1,N)<0.5)-0.5);
+    Ts = 1/fb;
+    tx = 0:dt:(N)*Ts;
+    
+    % insert the message onto xn, put a spike every Ts seconds
+    xn = zeros(size(tx));
+    for i=0:N-1
+        xn(abs(tx - i * Ts) < .0001) = bits(i+1);
+    end
+    % calculate the convolution
+    y_conv = conv(xn, p);
+    
+    nt = thisig*randn(1,length(y_conv));
+    rt = nt + y_conv;
+    
+    tx_out = -Tp:dt:(N)*Ts + Tp;
+    xhat = zeros(size(rt));
+    xhat_matched = zeros(size(rt));
+    
+    p_negt = flip(p);
+    zn = conv(rt, p_negt, "same");
+    
+    % make the zero array then add the +1 or -1 as described in the doc
+    for i=0:N-1
+        index = find(abs(tx_out - i* Ts) < .001);
+        if rt(index) > 0
+            xhat(index) = 1;
+        else
+            xhat(index) = -1;
+        end
+    
+        if zn(index) > 0
+            xhat_matched(index) = 1;
+        else
+            xhat_matched(index) = -1;
+        end
+    
+    end
+    Py = sum(y_conv.^2 * dt);
+    Pn = sum(nt.^2 * dt);
+    % disp("SNR: " + Py/Pn);
+    
+    snrs(in) = Py/Pn;
+    if Pn == 0
+        snrs(in) = 0;
+    end
+    xn_sign = xhat(xhat ~= 0);
+    xn_matched = xhat_matched(xhat ~= 0);
+    error_rate_sign = sum(xn_sign ~= bits)/N;
+    error_rate_matched = sum(xn_matched ~= bits)/N;
+end
+figure;
+hold on
+plot(errorSign, snrs);
+plot(errorMatch, snrs);
