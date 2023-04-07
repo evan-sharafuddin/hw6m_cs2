@@ -1,75 +1,45 @@
 clear, close all
 
 % param
-N = 10; % number of bits
+N = 20; % number of bits
 Tp = 0.1; % half the pulse width
 dt = Tp/50; % sampling frequency -- keep this constant
-fb = 1/(2*Tp); % bit rate
+fb = 1/(Tp); % bit rate
 dt_b = 1/fb; % bit period (how long between bits)
 t = 0:dt:(dt_b*N); % time range -- not sure if this is right
+sigma = 1; % noise parameter for part e
+
 % upper limit is the number of bit periods times the number of bits
 
-
-sigma = 1; % noise parameter for part e
 %% PART A -- need graphs, etc
 t_pulse = -Tp:dt:Tp;
 p = 1-abs(t_pulse./Tp);
 % creates triangular pulse that is 2*Tp wide in time
 
-plot(t_pulse,p)
+% plot(t_pulse,p)
 
-transform = fft(p);
+transform = fft((p(1:end-1)));
 Fs = 1/dt;
 f = Fs * (0:length(transform)-1)/length(transform);
 
+% figure, stem(abs(transform))
 
+% testing shifted vs unshifted
+% x = [0:0.2:1 0.8:-0.2:0.2];
+% X = fft(x); X_shift=fft(fftshift(x));
+% figure,subplot(2,1,1)
+% stem(angle(X))
+% subplot(2,1,2), stem(angle(X_shift))
+% 
+% figure,subplot(2,1,1)
+% stem(abs(X))
+% subplot(2,1,2)
+% stem(abs(X_shift))
 
 %% PART C
-% testing: bits = 2*((rand(1,N)<0.5)-0.5);
-bits = [ones([N,1])]; % testing signal of all ones length N (10)
-figure,stem(bits)
-% plot of some test bits we could use 
+bits = 2*((rand(1,N)<0.5)-0.5);
 
 %% PART D
-
-
-
-
-% this is where I got really confused. According to the bit rate the bits
-% should be spaced 100 apart, and I think the first bit occurs at 51. So
-% using this I created the following graph and it looks right, but then I
-% do the convolution and its weird.
-xn = zeros(N*dt_b/dt+1,1);
-
-% select times where the bit period divides cleanly the time (this is where
-% the bits should occur!)
-bits_temp = bits;
-for i = 51:(dt_b/dt):N*(dt_b/dt)+1
-    xn(i) = bits_temp(1);
-    bits_temp = bits_temp(2:end);
-end
-xn = xn';
-
-figure, hold on
-stem(xn)
-plot(repmat(p(1:end-1),[1,10])) % 10 repeats of the triangular pulse. I cut
-% off the last element in the pulse because otherwise it would be
-% duplicating a zero
-
-y = conv(xn,p);
-% note: length of convolution vector is len(xn)+len(p)-1
-
-% cropping out all the values in the convolution that are zero
-y_crop = y(y ~= 0);
-figure,plot(y_crop)
-% if you zoom in really close to where the convolution touches x=0, you can
-% see that it is flat for a little bit. This is where I am stuck I can't
-% figure out why this is happening :(
-
-% probably something to due with the overlapping of the triangles or
-% something, maybe it could be fixed in part a
-
-
 
 % Thomas
 % How I think x should be generated: u take the bits defined in c, and put
@@ -77,103 +47,133 @@ figure,plot(y_crop)
 % the spikes corresponding to one in bits
 % result is kinda same as urs evan, but maybe its more general? idk
 
-
-% tx = t_pulse;
-
 % makes a time vector of appropriate length. I chose Ts arbitrarily
-Ts = 0.2;
+Ts = 1/fb;
 tx = 0:dt:(N)*Ts;
 
 % insert the message onto xn, put a spike every Ts seconds
-xner = zeros(size(tx));
+xn = zeros(size(tx));
 for i=0:N-1
-    xner(abs(tx - i * Ts) < .0001) = bits(i+1);
+    xn(abs(tx - i * Ts) < .0001) = bits(i+1);
 end
 % calculate the convolution
-y_conv = conv(xner, p);
-
-
-% if length(xner) > length(p)
-%     y_conv = conv(xner, p, 'same');
-% else
-%     y_conv = conv(p, xner, 'same');
-% end
-
-% plot it against the original impulse message. append zeros. the
-% convolution will increase size of axis by half of the size of triangle
-% (Tp) on both sides, so add that on
-figure
-hold on
-plot([zeros(1, floor(length(p)/2)) xner zeros(1, floor(length(p)/2))] )
-plot(y_conv)
+y_conv = conv(xn, p);
 
 %% part E
 % add noise as specified
 nt = sigma*randn(1,length(y_conv));
 rt = nt + y_conv;
-figure, plot(rt)
+
 %% part F
 
 % make a new time axis, again, time is increased by Tp on both sides
-tx2 = -Tp:dt:(N)*Ts + Tp;
+tx_out = -Tp:dt:(N)*Ts + Tp;
 xhat = zeros(size(rt));
-xhater = zeros(size(rt));
+xhat_matched = zeros(size(rt));
 
-pnegt = flip(p);
-zn = conv(rt, pnegt, "same");
+p_negt = flip(p);
+zn = conv(rt, p_negt, "same");
 
 % make the zero array then add the +1 or -1 as described in the doc
 for i=0:N-1
-    index = find(abs(tx2 - i* Ts) < .001);
+    index = find(abs(tx_out - i* Ts) < .001);
     if rt(index) > 0
         xhat(index) = 1;
     else
         xhat(index) = -1;
     end
 
-
     if zn(index) > 0
-        xhater(index) = 1;
+        xhat_matched(index) = 1;
     else
-        xhater(index) = -1;
+        xhat_matched(index) = -1;
     end
 
 end
-figure, plot(xhat)
-
-
-figure, plot(zn)
-figure, plot(xhater)
-
 
 
 %% Part g
 % i
 figure;
 plot(t_pulse, p);
+xlabel('time'),ylabel('p')
+title('plot of triangular pulse p(t)')
 
 % TODO plot fft and hand calculate fft
 figure
 subplot(2, 1, 1)
-plot(f, abs(transform))
+stem(f, abs(transform))
+title('|P(j\omega)|')
+xlabel('\omega')
 subplot(2, 1, 2)
-plot(f, angle(transform))
+% correcting phase noise -- the imagionary values were extremely tiny but
+% were still causing there to be nonzero phase when the phase should've
+% actually been zero
 
+true_phase = zeros(length(transform),1);
+
+for i = 1:length(transform)
+    if imag(transform(i)) < 1e-6
+        true_phase(i) = angle(real(transform(i)));
+    else
+        true_phase(i) = angle(transform(i));
+    end
+end
+
+stem(f,true_phase)
+xlabel('\omega')
+title('\angle P(j\omega)')
+%%
 % ii
 figure;
-plot(tx2, y_conv)
-
+plot(tx_out, y_conv)
+hold on, stem(tx_out,[zeros(1, floor(length(p)/2)) xn zeros(1, floor(length(p)/2))])
+title('plot of transmitted signal vs x_n')
+legend('y(t)','x_n(t)')
+hold off
 % iii
 figure;
-plot(tx2, rt);
+plot(tx_out, rt);
+% plot it against the original impulse message. append zeros. the
+% convolution will increase size of axis by half of the size of triangle
+% (Tp) on both sides, so add that on
+hold on,stem(tx_out,[zeros(1, floor(length(p)/2)) xn zeros(1, floor(length(p)/2))])
+title('recieved signal vs. input signal')
+xlabel('time')
+legend('recieved signal r(t)','input signal x_n')
+hold off
 
 % iv
-figure;
-plot(tx2, xhat);
-figure;
-plot(tx2, xhater);
+figure, hold on
+stem(tx, xhat(Tp/dt+1:end-Tp/dt)),stem(tx,xn)
+legend('Signed-based reciever','input signal')
+title('sent message and decoded message, signed-based reciever')
+xlabel('time')
+hold off
+
+figure,hold on
+stem(tx, xhat_matched(Tp/dt+1:end-Tp/dt)),stem(tx,xn)
+legend('Matched filter reciever','input signal')
+title('sent message and decoded message, matched filter reciever')
+xlabel('time')
+hold off
 
 % v
+% bit rate 
+disp("Bit rate: " + fb)
+disp("noise standard deviation (essentially 1): " + std(nt))
+
 Py = sum(y_conv.^2 * dt);
 Pn = sum(nt.^2 * dt);
-disp("SNR: " + Py/Pn)
+disp("SNR: " + Py/Pn);
+
+% error rate calculations
+xn_sign = xhat(xhat ~= 0);
+xn_matched = xhat_matched(xhat ~= 0);
+error_rate_sign = sum(xn_sign ~= bits)/N;
+error_rate_matched = sum(xn_matched ~= bits)/N;
+
+disp("sign-based reciever error rate: " + error_rate_sign);
+disp("matched filter error rate: " + error_rate_matched);
+
+
