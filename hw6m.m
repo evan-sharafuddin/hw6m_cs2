@@ -184,6 +184,8 @@ dt = Tp/50; % sampling frequency -- keep this constant
 dt_b = 1/fb; % bit period (how long between bits)
 t = 0:dt:(dt_b*N); % time range -- not sure if this is right
 
+% basically plotted error rate vs snr for a range of sigmas, as instructed
+
 t_pulse = -Tp:dt:Tp;
 p = 1-abs(t_pulse./Tp);
 % cycle through the different fb
