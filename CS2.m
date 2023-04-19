@@ -4,7 +4,6 @@ clear, close all
 % used to test part 2
 % [t_sinc, dt, sincPulse] = sinc_pulse(2*pi, .5);
 
-
 % TODO: make the other pulse for part 2
 %% part 3
 
@@ -15,25 +14,45 @@ clear, close all
 
 %% part 4
 N = 20; % number of bits
-Tp = .5;
+Tp = 0.1; % symbol width (centered around zero)
 fb = 1/(2*Tp); % bit rate
-wc1 = 20*2*pi;
-sigma = 0;
+wc1 = 20*2*pi; % frequency of upconverter -- currently 20 Hz
+sigma = 3; % noise parameter 
 
-[t_sinc, dt, sincPulse] = sinc_pulse(2*pi, Tp);
-%[t_sinc, dt, sincPulse] = ppulse(Tp);
+% create symbol
+% [t_sinc, dt, sincPulse] = sinc_pulse(2*pi, Tp);
+[t_pulse, dt, pulse] = ppulse(Tp);
+
+% create vector of bits (at the moment, this is random)
 bits = 2*((rand(1,N)<0.5)-0.5);
 
-[ty, y] = pam(fb, dt, Tp, N, bits, sincPulse);
+% communication system 
+% bits to signal
+[ty, y] = pam(fb, dt, Tp, N, bits, pulse);
 
+% upconvert to desired signal
 upconverted1 = upconvert(wc1, ty, dt, y);
-[ynoise, noise] = addNoise(y, sigma);
 
-xhat = downconvert(wc1, ty, dt, ynoise, sincPulse, N, fb);
+% add noise to simulate transmission
+[ynoise, noise] = addNoise(upconverted1, sigma);
+
+% downconverts recieved signal, applies matched filter to recover original
+% signal and resolve noise
+xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, fb);
+
+%%% use for testing without upconversion
+% [ynoise, noise] = addNoise(y, sigma);
+% xhat = matchFilter(pulse, ty, ynoise, N, fb);
+%%%
+
+% recovers the bits
 xn = xhat(xhat ~= 0);
+
+
 
 % noise level
 disp("noise coeff " + sigma)
+disp("bit rate " + fb)
 
 % snr
 Py = sum(y.^2 * dt);
@@ -45,19 +64,20 @@ else
     snr = Py/Pn;
 end
 
+
 disp("snr " + snr );
 
 % error
-disp("rate " + sum(xn == bits) / length(bits) )
+disp("error rate " + string(1-(sum(xn == bits) / length(bits))))
 
 figure;
-subplot(2, 1, 1)
-stem(xn)
-title("xn")
 subplot(2, 1, 2)
+stem(xn)
+title("xn -- recieved bits")
+subplot(2, 1, 1)
 stem(bits)
-title("bits")
-pause;
+title("bits - sent/original bits")
+% pause;
 
 %% Functions
 % function used to generate a triangle pulse. Tp is the width (in time) of
@@ -71,41 +91,40 @@ end
 
 % generates a sinc pulse instead of a triangle. again, Tp is the width, and
 % w is the angular frequency of the sinc wave.
-function [time, dt, pulse] = sinc_pulse (w, Tp)
-    
-    % param
-    dt = Tp/50; % sampling frequency -- keep this constant
-    
-    % creates the time vector and the pulse
-    t_sinc = -Tp:dt:Tp;
-    sincPulse = sinc(w * t_sinc);
+function [time, dt, pulse] = sinc_pulse(w, Tp)
 
-    % plot
-    figure;
-    plot(t_sinc, sincPulse);
-    title("Sinc");
-    xlabel("Time (s)");
-    ylabel("Amplitude");
-    fs = 1/dt;
+dt = Tp/50; % sampling frequency -- keep this constant
 
-    transform = fft(sincPulse);
-    f = 0:fs/length(transform):fs-fs/length(transform);
+% creates the time vector and the pulse
+t_sinc = -Tp:dt:Tp;
+sincPulse = sinc(w * t_sinc);
 
-    figure;
-    subplot(2, 1, 1);
-    plot(f, abs(transform));
-    title("Fourier Transform");
-    xlabel("Frequency (Hz)");
-    ylabel("Magnitude");
+% plot
+figure;
+plot(t_sinc, sincPulse);
+title("Sinc");
+xlabel("Time (s)");
+ylabel("Amplitude");
+fs = 1/dt;
 
-    subplot(2, 1, 2);
-    plot(f, angle(transform));
-    title("Fourier Transform");
-    xlabel("Frequency (Hz)");
-    ylabel("Angle");
-    
-    time = t_sinc;
-    pulse = sincPulse;
+transform = fft(sincPulse);
+f = 0:fs/length(transform):fs-fs/length(transform);
+
+figure;
+subplot(2, 1, 1);
+plot(f, abs(transform));
+title("Fourier Transform");
+xlabel("Frequency (Hz)");
+ylabel("Magnitude");
+
+subplot(2, 1, 2);
+plot(f, angle(transform));
+title("Fourier Transform");
+xlabel("Frequency (Hz)");
+ylabel("Angle");
+
+time = t_sinc;
+pulse = sincPulse;
 
 end
 
@@ -118,6 +137,7 @@ tx = 0:dt:(N)*Ts;
 xn = zeros(size(tx));
 for i=0:N-1
     xn(abs(tx - i * Ts) < .0001) = bits(i+1);
+    
 end
 
 
@@ -125,22 +145,25 @@ end
 y = conv(xn, pulse);
 % remake the time vector for this new function
 tout = -Tp:dt:(N)*Ts + Tp;
+
 figure;
 plot(tout, y);
 title("pam")
+hold on, stem(tout,[zeros(1,50) xn zeros(1,50)])
 end
 
 % will pass in signal not pulse later. pulse is the signal, not a singular
 % pulse
-function upconverted = upconvert(wc, time, dt, pulse)
+% --- changed pulse to "signal" for more clarity
+function upconverted = upconvert(wc, time, dt, signal)
     % multiply by a cos to upconvert
     upconverter = cos(wc*time);
-    upconverted = pulse.*upconverter;
+    upconverted = signal.*upconverter;
 
     % plot
     figure;
     plot(time, upconverted);
-    xlabel('time (s)'), ylabel('y(t)'), title('Modulated sinc');
+    xlabel('time (s)'), ylabel('y(t)'), title('Upconverted signal');
     
     % fft
     fs = 1/dt;
@@ -151,13 +174,13 @@ function upconverted = upconvert(wc, time, dt, pulse)
     figure;
     subplot(2, 1, 1);
     plot(f, abs(transform));
-    title("Fourier Transform");
+    title("Fourier Transform of upconverted signal");
     xlabel("Frequency (Hz)");
     ylabel("Magnitude");
 
     subplot(2, 1, 2);
     plot(f, angle(transform));
-    title("Fourier Transform");
+    title("Fourier Transform of upconverted signal");
     xlabel("Frequency (Hz)");
     ylabel("Angle");
 end
@@ -169,14 +192,15 @@ ynoise = y + nt;
 end
 
 % function to downconvert (without the filter component)
-function downconverted = downconvertNoLowpass(wc, time, dt, uppulse)
+% changed uppulse to "upconverted signal" for more clarity
+function downconverted = downconvertNoLowpass(wc, time, dt, upcon_signal)
     % multiply by the cos to downconvert.
     downconverter = cos(wc*time);
-    downconverted = uppulse.*downconverter;
+    downconverted = upcon_signal.*downconverter;
 
     figure;
     plot(time, downconverted);
-    xlabel('time (s)'), ylabel('y(t)'), title('Modulated sinc');
+    xlabel('time (s)'), ylabel('y(t)'), title('downconverted signal');
     
     % fft
     fs = 1/dt;
@@ -187,13 +211,13 @@ function downconverted = downconvertNoLowpass(wc, time, dt, uppulse)
     figure;
     subplot(2, 1, 1);
     plot(f, abs(transform));
-    title("Fourier Transform");
+    title("Fourier Transform of downconverted signal");
     xlabel("Frequency (Hz)");
     ylabel("Magnitude");
 
     subplot(2, 1, 2);
     plot(f, angle(transform));
-    title("Fourier Transform");
+    title("Fourier Transform of downconverted signal");
     xlabel("Frequency (Hz)");
     ylabel("Angle");
 end
@@ -218,14 +242,17 @@ function xhat_matched = matchFilter(pulse, tsig, noisySignal, N, fb)
     Ts = 1/fb;
     for i=0:N-1
         index = find(abs(tsig - i* Ts) < .001);
-        
-    
+          
         if zn(index) > 0
             xhat_matched(index) = 1;
         else
             xhat_matched(index) = -1;
         end
 
+        
+
     end
+
+
 
 end
