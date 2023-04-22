@@ -12,6 +12,42 @@ clear, close all
 % upconverted1 = upconvert(wc1, t_sinc, dt, sincPulse);
 % downconverted1 = downconvertNoLowpass(wc1, t_sinc, dt, upconverted1);
 
+%% converting image to bits
+close all
+image = imread("amongus_small.jpg");
+image_gray = rgb2gray(image);
+image_gray_small = image_gray;
+image_bin = dec2bin(image_gray_small);
+
+% adjusted parameters
+N = numel(image_bin); 
+Tp = 0.05; % symbol width (centered around zero)
+fb = 1/(2*Tp); % bit rate
+wc1 = 20*2*pi; % frequency of upconverter -- currently 20 Hz
+sigma = 0; % noise parameter 
+Ts = 0.1; 
+
+[~, dt, pulse] = ppulse(Tp);
+bits = image_bin;
+[ty, y] = pam(fb, dt, Tp, Ts, N, bits, pulse);
+% upconverted1 = upconvert(wc1, ty, dt, y);
+% [ynoise, noise] = addNoise(upconverted1, sigma);
+% xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, Ts);
+
+[ynoise, noise] = addNoise(y, sigma);
+xhat = matchFilter(pulse, ty, ynoise, N, fb);
+
+% recovers the bits
+xn = xhat(xhat ~= 0);
+xn = xn(1:end-1);
+
+bits_reshaped = reshape(xn, length(image_bin(1,:)),length(image_bin(:,1)));
+size(bits_reshaped)
+bits_reshaped(bits_reshaped==-1) = 0;
+bits_reshaped = char(bits_reshaped' + '0');
+recovered_image = reshape(uint8(bin2dec(bits_reshaped)), size(image_gray));
+imshow(recovered_image)
+
 %% part 4
 N = 20; % number of bits
 Tp = 0.05; % symbol width (centered around zero)
@@ -130,16 +166,20 @@ pulse = sincPulse;
 end
 
 % function to add a spike every Ts seconds.
+%%% GET RID OF FOR LOOP
 function [tout, y] = pam(fb, dt, Tp, Ts, N, bits, pulse)
 tx = 0:dt:(N)*Ts;
 
 % insert the message onto xn, put a spike every Ts seconds
 xn = zeros(size(tx));
-for i=0:N-1
-    xn(abs(tx - i * Ts) < .0001) = bits(i+1);
-    
-end
-
+log = mod(tx,Ts) < 0.0001;
+indiv_bits = bits - '0';
+% need to transpose or else reshape orders it wrong
+bits_flat = reshape(indiv_bits', [numel(indiv_bits) 1]);
+% length of log is off for some reason
+numel(bits_flat)
+sum(log)
+xn(log(2:end)) = bits_flat;
 
 % calculate the convolution, will place the pulse at every spike
 y = conv(xn, pulse);
@@ -234,23 +274,32 @@ function xhat = downconvert(wc, time, dt, signal, pulse, N, Ts)
 end
 
 % implements the filter from hw 6.
+%%% GET RID OF FOR LOOP
 function xhat_matched = matchFilter(pulse, tsig, noisySignal, N, Ts)
     % fplits p, then convolutes with zn
     p_negt = flip(pulse);
     zn = conv(noisySignal, p_negt, "same");
     xhat_matched = zeros(size(noisySignal));
-    for i=0:N-1
-        index = find(abs(tsig - i* Ts) < .0001);
-          
-        if zn(index) > 0
-            xhat_matched(index) = 1;
-        else
-            xhat_matched(index) = -1;
-        end
+
+    log = mod(tsig,Ts) < 0.0001;
+    log_pos = zn(log) > 0;
+    log_neg = ~log_pos;
+    xhat_matched(log_pos) = 1;
+    xhat_matched(log_neg) = -1;
+    
+%     for i=0:N-1
+%         index = find(abs(tsig - i* Ts) < .0001);
+%           
+%         if zn(index) > 0
+%             xhat_matched(index) = 1;
+%         else
+%             xhat_matched(index) = -1;
+%         end
+%      end
 
         
 
-    end
+    
 
 
 

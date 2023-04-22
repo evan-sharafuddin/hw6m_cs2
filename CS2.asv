@@ -4,7 +4,6 @@ clear, close all
 % used to test part 2
 % [t_sinc, dt, sincPulse] = sinc_pulse(2*pi, .5);
 
-
 % TODO: make the other pulse for part 2
 %% part 3
 
@@ -13,334 +12,228 @@ clear, close all
 % upconverted1 = upconvert(wc1, t_sinc, dt, sincPulse);
 % downconverted1 = downconvertNoLowpass(wc1, t_sinc, dt, upconverted1);
 
+%% converting image to bits
+close all
+image = imread("amongus_small.jpg");
+image_gray = rgb2gray(image);
+image_gray_small = image_gray;
+image_bin = dec2bin(image_gray_small);
+
+% adjusted parameters
+N = numel(image_bin); 
+Tp = 0.05; % symbol width (centered around zero)
+fb = 1/(2*Tp); % bit rate
+wc1 = 20*2*pi; % frequency of upconverter -- currently 20 Hz
+sigma = 1; % noise parameter 
+Ts = 0.1; 
+
+[~, dt, pulse] = ppulse(Tp);
+bits = image_bin;
+[ty, y] = pam(fb, dt, Tp, Ts, N, bits, pulse);
+upconverted1 = upconvert(wc1, ty, dt, y);
+[ynoise, noise] = addNoise(upconverted1, sigma);
+xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, Ts);
+
+% recovers the bits
+xn = xhat(xhat ~= 0);
+
+
+% % noise level
+% disp("noise coeff " + sigma)
+% disp("bit rate " + 1/Ts)
+% 
+% % snr
+% Py = sum(y.^2 * dt);
+% Pn = sum(noise.^2 * dt);
+% 
+% if (Pn == 0)
+%     snr = 0;
+% else
+%     snr = Py/Pn;
+% end
+% 
+% 
+% disp("snr " + snr );
+% 
+% % error
+% disp("error rate " + string(1-(sum(xn == bits) / length(bits))))
+% 
+% figure;
+% subplot(2, 1, 2)
+% stem(xn)
+% title("xn -- recieved bits")
+% subplot(2, 1, 1)
+% stem(bits)
+% title("bits - sent/original bits")
+% pause;
+
+%%%
+% insert PAM here
+%%%
+
+bits_reshaped = reshape(xn, length(image_bin(1,:)),length(image_bin(:,1)));
+size(bits_reshaped)
+bits_reshaped(bits_reshaped==-1) = 0;
+bits_reshaped = char(bits_reshaped' + '0');
+recovered_image = reshape(uint8(bin2dec(image_bin)), size(image_gray_small));
+imshow(recovered_image)
+
 %% part 4
 N = 20; % number of bits
-fb = 1/(Tp); % bit rate
+Tp = 0.05; % symbol width (centered around zero)
+fb = 1/(2*Tp); % bit rate
+wc1 = 20*2*pi; % frequency of upconverter -- currently 20 Hz
+sigma = 1; % noise parameter 
+Ts = 0.1; 
 
+% create symbol
+% [t_sinc, dt, sincPulse] = sinc_pulse(2*pi, Tp);
+[t_pulse, dt, pulse] = sinc_pulse(wc1, Tp);
 
-[t_sinc, dt, sincPulse] = sinc_pulse(2*pi, .5);
+% create vector of bits (at the moment, this is random)
 bits = 2*((rand(1,N)<0.5)-0.5);
 
-ty, y = pam(fb, dt, Tp, N, bits);
+% communication system 
+% bits to signal
+[ty, y] = pam(fb, dt, Tp, Ts, N, bits, pulse);
 
+% upconvert to desired signal
 upconverted1 = upconvert(wc1, ty, dt, y);
-ynoise = addNoise(y);
+
+% add noise to simulate transmission
+[ynoise, noise] = addNoise(upconverted1, sigma);
+
+% downconverts recieved signal, applies matched filter to recover original
+% signal and resolve noise
+xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, Ts);
+
+%%% use for testing without upconversion
+% [ynoise, noise] = addNoise(y, sigma);
+% xhat = matchFilter(pulse, ty, ynoise, N, fb);
+%%%
+
+% recovers the bits
+xn = xhat(xhat ~= 0);
 
 
 
-pause;
-%%
+% noise level
+disp("noise coeff " + sigma)
+disp("bit rate " + 1/Ts)
 
+% snr
+Py = sum(y.^2 * dt);
+Pn = sum(noise.^2 * dt);
 
-% param
-N = 20; % number of bits
-Tp = 0.1; % half the pulse width
-dt = Tp/50; % sampling frequency -- keep this constant
-fb = 1/(Tp); % bit rate
-dt_b = 1/fb; % bit period (how long between bits)
-sigma = 1; % noise parameter for part e
-
-% upper limit is the number of bit periods times the number of bits
-
-%% Pulse from before
-t_pulse = -Tp:dt:Tp;
-p = 1-abs(t_pulse./Tp);
-% creates triangular pulse that is 2*Tp wide in time
-
-% plot(t_pulse,p)
-
-transform = fft((p(1:end-1)));
-Fs = 1/dt;
-f = Fs * (0:length(transform)-1)/length(transform);
-
-
-%% PART C
-bits = 2*((rand(1,N)<0.5)-0.5);
-
-%% PART D
-
-% Thomas
-% How I think x should be generated: u take the bits defined in c, and put
-% them into an array along with time. every Ts time, there will be one of
-% the spikes corresponding to one in bits
-% result is kinda same as urs evan, but maybe its more general? idk
-
-% makes a time vector of appropriate length. I chose Ts arbitrarily
-Ts = 1/fb;
-tx = 0:dt:(N)*Ts;
-
-% insert the message onto xn, put a spike every Ts seconds
-xn = zeros(size(tx));
-for i=0:N-1
-    xn(abs(tx - i * Ts) < .0001) = bits(i+1);
-end
-% calculate the convolution
-y_conv = conv(xn, p);
-
-%% part E
-% add noise as specified
-nt = sigma*randn(1,length(y_conv));
-rt = nt + y_conv;
-
-%% part F
-
-% make a new time axis, again, time is increased by Tp on both sides
-tx_out = -Tp:dt:(N)*Ts + Tp;
-xhat = zeros(size(rt));
-xhat_matched = zeros(size(rt));
-
-p_negt = flip(p);
-zn = conv(rt, p_negt, "same");
-
-% make the zero array then add the +1 or -1 as described in the doc
-for i=0:N-1
-    index = find(abs(tx_out - i* Ts) < .001);
-    if rt(index) > 0
-        xhat(index) = 1;
-    else
-        xhat(index) = -1;
-    end
-
-    if zn(index) > 0
-        xhat_matched(index) = 1;
-    else
-        xhat_matched(index) = -1;
-    end
-
+if (Pn == 0)
+    snr = 0;
+else
+    snr = Py/Pn;
 end
 
 
-%% Part g
-% i
+disp("snr " + snr );
+
+% error
+disp("error rate " + string(1-(sum(xn == bits) / length(bits))))
+
 figure;
-plot(t_pulse, p);
-xlabel('time'),ylabel('p')
-title('plot of triangular pulse p(t)')
-
-% TODO plot fft and hand calculate fft
-figure
-subplot(2, 1, 1)
-stem(f, abs(transform))
-title('|P(j\omega)|')
-xlabel('\omega')
 subplot(2, 1, 2)
-% correcting phase noise -- the imagionary values were extremely tiny but
-% were still causing there to be nonzero phase when the phase should've
-% actually been zero
-
-true_phase = zeros(length(transform),1);
-
-for i = 1:length(transform)
-    if imag(transform(i)) < 1e-6
-        true_phase(i) = angle(real(transform(i)));
-    else
-        true_phase(i) = angle(transform(i));
-    end
-end
-
-stem(f,true_phase)
-xlabel('\omega')
-title('\angle P(j\omega)')
-%%
-% ii
-figure;
-plot(tx_out, y_conv)
-hold on, stem(tx_out,[zeros(1, floor(length(p)/2)) xn zeros(1, floor(length(p)/2))])
-title('plot of transmitted signal vs x_n')
-legend('y(t)','x_n(t)')
-hold off
-% iii
-figure;
-plot(tx_out, rt);
-% plot it against the original impulse message. append zeros. the
-% convolution will increase size of axis by half of the size of triangle
-% (Tp) on both sides, so add that on
-hold on,stem(tx_out,[zeros(1, floor(length(p)/2)) xn zeros(1, floor(length(p)/2))])
-title('recieved signal vs. input signal')
-xlabel('time')
-legend('recieved signal r(t)','input signal x_n')
-hold off
-
-% iv
-figure, hold on
-stem(tx, xhat(Tp/dt+1:end-Tp/dt)),stem(tx,xn)
-legend('Signed-based reciever','input signal')
-title('sent message and decoded message, signed-based reciever')
-xlabel('time')
-hold off
-
-figure,hold on
-stem(tx, xhat_matched(Tp/dt+1:end-Tp/dt)),stem(tx,xn)
-legend('Matched filter reciever','input signal')
-title('sent message and decoded message, matched filter reciever')
-xlabel('time')
-hold off
-
-% v
-% bit rate 
-disp("Bit rate: " + fb)
-disp("noise standard deviation (essentially 1): " + std(nt))
-
-Py = sum(y_conv.^2 * dt);
-Pn = sum(nt.^2 * dt);
-disp("SNR: " + Py/Pn);
-
-% error rate calculations
-xn_sign = xhat(xhat ~= 0);
-xn_matched = xhat_matched(xhat_matched ~= 0);
-error_rate_sign = sum(xn_sign ~= bits)/N;
-error_rate_matched = sum(xn_matched ~= bits)/N;
-
-disp("sign-based reciever error rate: " + error_rate_sign);
-disp("matched filter error rate: " + error_rate_matched);
-
-%% part 2
-% param
-N = 40; % number of bits
-Tp = 0.1; % half the pulse width
-dt = Tp/50; % sampling frequency -- keep this constant
-dt_b = 1/fb; % bit period (how long between bits)
-t = 0:dt:(dt_b*N); % time range -- not sure if this is right
-
-% basically plotted error rate vs snr for a range of sigmas, as instructed
-
-t_pulse = -Tp:dt:Tp;
-p = 1-abs(t_pulse./Tp);
-% cycle through the different fb
-for inter = 1:2
-    fb = 1/inter/Tp;
-    sigmarray = 0:.1:1;
-    snrs = zeros(size(sigmarray));
-    errorSign = zeros(size(sigmarray));
-    errorMatch = zeros(size(sigmarray));
-    % cycle through sigmas
-    for in = 1:length(sigmarray)
-        % do stuff that i copied from above
-        thisig = sigmarray(in);
-    
-        bits = 2*((rand(1,N)<0.5)-0.5);
-        Ts = 1/fb;
-        tx = 0:dt:(N)*Ts;
-        
-        % insert the message onto xn, put a spike every Ts seconds
-        xn = zeros(size(tx));
-        for i=0:N-1
-            xn(abs(tx - i * Ts) < .0001) = bits(i+1);
-        end
-        % calculate the convolution
-        y_conv = conv(xn, p);
-        
-        nt = thisig*randn(1,length(y_conv));
-        rt = nt + y_conv;
-        
-        tx_out = -Tp:dt:(N)*Ts + Tp;
-        xhat = zeros(size(rt));
-        xhat_matched = zeros(size(rt));
-        
-        p_negt = flip(p);
-        zn = conv(rt, p_negt, "same");
-        
-        % make the zero array then add the +1 or -1 as described in the doc
-        for i=0:N-1
-            index = find(abs(tx_out - i* Ts) < .001);
-            if rt(index) > 0
-                xhat(index) = 1;
-            else
-                xhat(index) = -1;
-            end
-        
-            if zn(index) > 0
-                xhat_matched(index) = 1;
-            else
-                xhat_matched(index) = -1;
-            end
-        
-        end
-        Py = sum(y_conv.^2 * dt);
-        Pn = sum(nt.^2 * dt);
-        % disp("SNR: " + Py/Pn);
-        
-        snrs(in) = Py/Pn;
-        if Pn == 0
-            snrs(in) = 0;
-        end
-        xn_sign = xhat(xhat ~= 0);
-        xn_matched = xhat_matched(xhat_matched ~= 0);
-        error_rate_sign = sum(xn_sign ~= bits)/N;
-        error_rate_matched = sum(xn_matched ~= bits)/N;
-        errorSign(in) = error_rate_sign;
-        errorMatch(in) = error_rate_matched;
-    end
-    figure;
-    hold on
-    plot(errorSign, snrs);
-    plot(errorMatch, snrs);
-    ylabel("snr");
-    xlabel("error");
-    title("fb = 1/" + inter + "Tp");
-    legend("Sign", "Matched");
-end
+stem(xn)
+title("xn -- recieved bits")
+subplot(2, 1, 1)
+stem(bits)
+title("bits - sent/original bits")
+% pause;
 
 %% Functions
-function [time, dt, pulse] = sinc_pulse (w, Tp)
-    
-    % param
-    dt = Tp/50; % sampling frequency -- keep this constant
-    
+% function used to generate a triangle pulse. Tp is the width (in time) of
+% the pulse
+function [time, dt, pulse] = ppulse(Tp)
+dt = Tp/50; % sampling frequency -- keep this constant
 
-    t_sinc = -Tp:dt:Tp;
-    sincPulse = sinc(w * t_sinc);
-    % creates triangular pulse that is 2*Tp wide in time
-    figure;
-    plot(t_sinc, sincPulse);
-    title("Sinc");
-    xlabel("Time (s)");
-    ylabel("Amplitude");
-    % plot(t_pulse,p)
-    fs = 1/dt;
+time = -Tp:dt:Tp;
+pulse = 1-abs(time./Tp);
+end
 
-    transform = fft(sincPulse);
-    f = 0:fs/length(transform):fs-fs/length(transform);
+% generates a sinc pulse instead of a triangle. again, Tp is the width, and
+% w is the angular frequency of the sinc wave.
+function [time, dt, pulse] = sinc_pulse(w, Tp)
 
-    figure;
-    subplot(2, 1, 1);
-    plot(f, abs(transform));
-    title("Fourier Transform");
-    xlabel("Frequency (Hz)");
-    ylabel("Magnitude");
+dt = Tp/50; % sampling frequency -- keep this constant
 
-    subplot(2, 1, 2);
-    plot(f, angle(transform));
-    title("Fourier Transform");
-    xlabel("Frequency (Hz)");
-    ylabel("Angle");
-    
-    time = t_sinc;
-    pulse = sincPulse;
+% creates the time vector and the pulse
+t_sinc = -Tp:dt:Tp;
+sincPulse = sinc(w * t_sinc);
+
+% plot
+figure;
+plot(t_sinc, sincPulse);
+title("Sinc");
+xlabel("Time (s)");
+ylabel("Amplitude");
+fs = 1/dt;
+
+transform = fft(sincPulse);
+f = 0:fs/length(transform):fs-fs/length(transform);
+
+figure;
+subplot(2, 1, 1);
+plot(f, abs(transform));
+title("Fourier Transform");
+xlabel("Frequency (Hz)");
+ylabel("Magnitude");
+
+subplot(2, 1, 2);
+plot(f, angle(transform));
+title("Fourier Transform");
+xlabel("Frequency (Hz)");
+ylabel("Angle");
+
+time = t_sinc;
+pulse = sincPulse;
 
 end
 
-function tout, y = pam(fb, dt, Tp, N, bits)
-Ts = 1/fb;
+% function to add a spike every Ts seconds.
+%%% GET RID OF FOR LOOP
+function [tout, y] = pam(fb, dt, Tp, Ts, N, bits, pulse)
 tx = 0:dt:(N)*Ts;
 
 % insert the message onto xn, put a spike every Ts seconds
 xn = zeros(size(tx));
-for i=0:N-1
-    xn(abs(tx - i * Ts) < .0001) = bits(i+1);
-end
-% calculate the convolution
-y = conv(xn, p);
-tx_out = -Tp:dt:(N)*Ts + Tp;
+log = mod(tx,Ts) < 0.0001;
+indiv_bits = bits - '0';
+% need to transpose or else reshape orders it wrong
+bits_flat = reshape(indiv_bits', [numel(indiv_bits) 1]);
+% length of log is off for some reason
+numel(bits_flat)
+sum(log)
+xn(log(2:end)) = bits_flat;
+
+% calculate the convolution, will place the pulse at every spike
+y = conv(xn, pulse);
+% remake the time vector for this new function
+tout = -Tp:dt:(N)*Ts + Tp;
+
+figure;
+plot(tout, y);
+title("pam")
+hold on, stem(tout,[zeros(1,50) xn zeros(1,50)])
 end
 
-% will pass in signal not pulse later
-function upconverted = upconvert(wc, time, dt, pulse)
+% will pass in signal not pulse later. pulse is the signal, not a singular
+% pulse
+% --- changed pulse to "signal" for more clarity
+function upconverted = upconvert(wc, time, dt, signal)
+    % multiply by a cos to upconvert
     upconverter = cos(wc*time);
-    upconverted = pulse.*upconverter;
+    upconverted = signal.*upconverter;
+
+    % plot
     figure;
     plot(time, upconverted);
-    xlabel('time (s)'), ylabel('y(t)'), title('Modulated sinc');
+    xlabel('time (s)'), ylabel('y(t)'), title('Upconverted signal');
     
     % fft
     fs = 1/dt;
@@ -351,31 +244,33 @@ function upconverted = upconvert(wc, time, dt, pulse)
     figure;
     subplot(2, 1, 1);
     plot(f, abs(transform));
-    title("Fourier Transform");
+    title("Fourier Transform of upconverted signal");
     xlabel("Frequency (Hz)");
     ylabel("Magnitude");
 
     subplot(2, 1, 2);
     plot(f, angle(transform));
-    title("Fourier Transform");
+    title("Fourier Transform of upconverted signal");
     xlabel("Frequency (Hz)");
     ylabel("Angle");
 end
-function ynoise = addNoise(y)
+
+% function to add noise with a signal y and a sigma for noise.
+function [ynoise, nt] = addNoise(y, sigma)
 nt = sigma*randn(1,length(y));
 ynoise = y + nt;
 end
-function downconverted = downconvertNoLowpass(wc, time, dt, uppulse)
+
+% function to downconvert (without the filter component)
+% changed uppulse to "upconverted signal" for more clarity
+function downconverted = downconvertNoLowpass(wc, time, dt, upcon_signal)
+    % multiply by the cos to downconvert.
     downconverter = cos(wc*time);
-    downconverted = uppulse.*downconverter;
-
-    % todo: add filter
-    % xhat = matchFilter()
-
+    downconverted = upcon_signal.*downconverter;
 
     figure;
     plot(time, downconverted);
-    xlabel('time (s)'), ylabel('y(t)'), title('Modulated sinc');
+    xlabel('time (s)'), ylabel('y(t)'), title('downconverted signal');
     
     % fft
     fs = 1/dt;
@@ -386,63 +281,56 @@ function downconverted = downconvertNoLowpass(wc, time, dt, uppulse)
     figure;
     subplot(2, 1, 1);
     plot(f, abs(transform));
-    title("Fourier Transform");
+    title("Fourier Transform of downconverted signal");
     xlabel("Frequency (Hz)");
     ylabel("Magnitude");
 
     subplot(2, 1, 2);
     plot(f, angle(transform));
-    title("Fourier Transform");
-    xlabel("Frequency (Hz)");
-    ylabel("Angle");
-end
-function downconverted = downconvertNoLowpass(wc, time, dt, uppulse)
-    downconverter = cos(wc*time);
-    downconverted = uppulse.*downconverter;
-
-    % todo: add filter
-    % xhat = matchFilter()
-
-
-    figure;
-    plot(time, downconverted);
-    xlabel('time (s)'), ylabel('y(t)'), title('Modulated sinc');
-    
-    % fft
-    fs = 1/dt;
-    transform = fft(downconverted);
-    f = 0:fs/length(transform):fs-fs/length(transform);
-    
-    
-    figure;
-    subplot(2, 1, 1);
-    plot(f, abs(transform));
-    title("Fourier Transform");
-    xlabel("Frequency (Hz)");
-    ylabel("Magnitude");
-
-    subplot(2, 1, 2);
-    plot(f, angle(transform));
-    title("Fourier Transform");
+    title("Fourier Transform of downconverted signal");
     xlabel("Frequency (Hz)");
     ylabel("Angle");
 end
 
-function xhat_matched = matchFilter(pulse, noisySignal, N)
+% calls the above downconverter, then lowpasses it
+function xhat = downconvert(wc, time, dt, signal, pulse, N, Ts)
+    downconverted= downconvertNoLowpass(wc, time, dt, signal);
+
+    % takes the downconverted and passes it through a filter.
+    xhat = matchFilter(pulse, time, downconverted, N, Ts);
+    figure;
+    plot(xhat);c
+
+end
+
+% implements the filter from hw 6.
+%%% GET RID OF FOR LOOP
+function xhat_matched = matchFilter(pulse, tsig, noisySignal, N, Ts)
+    % fplits p, then convolutes with zn
     p_negt = flip(pulse);
     zn = conv(noisySignal, p_negt, "same");
     xhat_matched = zeros(size(noisySignal));
 
-    for i=0:N-1
-        index = find(abs(tx_out - i* Ts) < .001);
-        
+    log = mod(tsig,Ts) < 0.0001;
+    log_pos = zn(log) > 0;
+    log_neg = ~log_pos;
+    zn(log_pos) = 1;
+    zn(log_neg) = -1;
     
-        if zn(index) > 0
-            xhat_matched(index) = 1;
-        else
-            xhat_matched(index) = -1;
-        end
+%     for i=0:N-1
+%         index = find(abs(tsig - i* Ts) < .0001);
+%           
+%         if zn(index) > 0
+%             xhat_matched(index) = 1;
+%         else
+%             xhat_matched(index) = -1;
+%         end
+
+
+        
 
     end
+
+
 
 end

@@ -4,7 +4,7 @@ clear, close all
 N = 20; % number of bits
 Tp = 0.1; % half the pulse width
 dt = Tp/50; % sampling frequency -- keep this constant
-fb = 1/(Tp); % bit rate
+fb = 1/(2*Tp); % bit rate
 dt_b = 1/fb; % bit period (how long between bits)
 t = 0:dt:(dt_b*N); % time range -- not sure if this is right
 sigma = 1; % noise parameter for part e
