@@ -14,21 +14,22 @@ clear, close all
 
 %% part 4
 N = 20; % number of bits
-Tp = 0.1; % symbol width (centered around zero)
+Tp = 0.05; % symbol width (centered around zero)
 fb = 1/(2*Tp); % bit rate
 wc1 = 20*2*pi; % frequency of upconverter -- currently 20 Hz
-sigma = 3; % noise parameter 
+sigma = 1; % noise parameter 
+Ts = 0.1; 
 
 % create symbol
 % [t_sinc, dt, sincPulse] = sinc_pulse(2*pi, Tp);
-[t_pulse, dt, pulse] = ppulse(Tp);
+[t_pulse, dt, pulse] = sinc_pulse(wc1, Tp);
 
 % create vector of bits (at the moment, this is random)
 bits = 2*((rand(1,N)<0.5)-0.5);
 
 % communication system 
 % bits to signal
-[ty, y] = pam(fb, dt, Tp, N, bits, pulse);
+[ty, y] = pam(fb, dt, Tp, Ts, N, bits, pulse);
 
 % upconvert to desired signal
 upconverted1 = upconvert(wc1, ty, dt, y);
@@ -38,7 +39,7 @@ upconverted1 = upconvert(wc1, ty, dt, y);
 
 % downconverts recieved signal, applies matched filter to recover original
 % signal and resolve noise
-xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, fb);
+xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, Ts);
 
 %%% use for testing without upconversion
 % [ynoise, noise] = addNoise(y, sigma);
@@ -52,7 +53,7 @@ xn = xhat(xhat ~= 0);
 
 % noise level
 disp("noise coeff " + sigma)
-disp("bit rate " + fb)
+disp("bit rate " + 1/Ts)
 
 % snr
 Py = sum(y.^2 * dt);
@@ -129,8 +130,7 @@ pulse = sincPulse;
 end
 
 % function to add a spike every Ts seconds.
-function [tout, y] = pam(fb, dt, Tp, N, bits, pulse)
-Ts = 1/fb;
+function [tout, y] = pam(fb, dt, Tp, Ts, N, bits, pulse)
 tx = 0:dt:(N)*Ts;
 
 % insert the message onto xn, put a spike every Ts seconds
@@ -223,25 +223,24 @@ function downconverted = downconvertNoLowpass(wc, time, dt, upcon_signal)
 end
 
 % calls the above downconverter, then lowpasses it
-function xhat = downconvert(wc, time, dt, signal, pulse, N, fb)
+function xhat = downconvert(wc, time, dt, signal, pulse, N, Ts)
     downconverted= downconvertNoLowpass(wc, time, dt, signal);
 
     % takes the downconverted and passes it through a filter.
-    xhat = matchFilter(pulse, time, downconverted, N, fb);
+    xhat = matchFilter(pulse, time, downconverted, N, Ts);
     figure;
     plot(xhat);
 
 end
 
 % implements the filter from hw 6.
-function xhat_matched = matchFilter(pulse, tsig, noisySignal, N, fb)
+function xhat_matched = matchFilter(pulse, tsig, noisySignal, N, Ts)
     % fplits p, then convolutes with zn
     p_negt = flip(pulse);
     zn = conv(noisySignal, p_negt, "same");
     xhat_matched = zeros(size(noisySignal));
-    Ts = 1/fb;
     for i=0:N-1
-        index = find(abs(tsig - i* Ts) < .001);
+        index = find(abs(tsig - i* Ts) < .0001);
           
         if zn(index) > 0
             xhat_matched(index) = 1;
