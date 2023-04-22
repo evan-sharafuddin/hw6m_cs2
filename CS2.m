@@ -12,34 +12,56 @@ clear, close all
 % upconverted1 = upconvert(wc1, t_sinc, dt, sincPulse);
 % downconverted1 = downconvertNoLowpass(wc1, t_sinc, dt, upconverted1);
 
+
 %% part 4
 N = 20; % number of bits
 Tp = 0.05; % symbol width (centered around zero)
 fb = 1/(2*Tp); % bit rate
+bandwidth = 10;
 wc1 = 20*2*pi; % frequency of upconverter -- currently 20 Hz
-sigma = 1; % noise parameter 
+wc2 = (20+bandwidth)*2*pi; % frequency of upconverter -- currently 20 Hz
+wc3 = (20+2*bandwidth)*2*pi; % frequency of upconverter -- currently 20 Hz
+
+wcPulse = 100;
+sigma = 0; % noise parameter 
 Ts = 0.1; 
 
 % create symbol
 % [t_sinc, dt, sincPulse] = sinc_pulse(2*pi, Tp);
-[t_pulse, dt, pulse] = sinc_pulse(wc1, Tp);
+
+% [t_pulse, dt, pulse] = gauss(.6, wcPulse, Tp);
+[t_pulse, dt, pulse] = sinc_pulse(wcPulse, Tp);
 
 % create vector of bits (at the moment, this is random)
 bits = 2*((rand(1,N)<0.5)-0.5);
+bits2 = 2*((rand(1,N)<0.5)-0.5);
+bits3 = 2*((rand(1,N)<0.5)-0.5);
 
 % communication system 
 % bits to signal
 [ty, y] = pam(fb, dt, Tp, Ts, N, bits, pulse);
+[ty2, y2] = pam(fb, dt, Tp, Ts, N, bits2, pulse);
+[ty3, y3] = pam(fb, dt, Tp, Ts, N, bits3, pulse);
 
 % upconvert to desired signal
 upconverted1 = upconvert(wc1, ty, dt, y);
+upconverted2 = upconvert(wc2, ty2, dt, y2);
+upconverted3 = upconvert(wc3, ty3, dt, y3);
 
 % add noise to simulate transmission
 [ynoise, noise] = addNoise(upconverted1, sigma);
+[ynoise2, noise2] = addNoise(upconverted2, sigma);
+[ynoise3, noise3] = addNoise(upconverted3, sigma);
+ytot = ynoise + ynoise2 +ynoise3;
+
+figure;
+plot(ytot);
 
 % downconverts recieved signal, applies matched filter to recover original
 % signal and resolve noise
-xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, Ts);
+xhat = downconvert(wc1, ty, dt, ytot, pulse, N, Ts);
+xhat2 = downconvert(wc2, ty, dt, ytot, pulse, N, Ts);
+xhat3 = downconvert(wc3, ty, dt, ytot, pulse, N, Ts);
 
 %%% use for testing without upconversion
 % [ynoise, noise] = addNoise(y, sigma);
@@ -48,6 +70,8 @@ xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, Ts);
 
 % recovers the bits
 xn = xhat(xhat ~= 0);
+xn2 = xhat2(xhat2 ~= 0);
+xn3 = xhat3(xhat3 ~= 0);
 
 
 
@@ -70,6 +94,9 @@ disp("snr " + snr );
 
 % error
 disp("error rate " + string(1-(sum(xn == bits) / length(bits))))
+disp("error rate 2 " + string(1-(sum(xn2 == bits2) / length(bits2))))
+disp("error rate 3 " + string(1-(sum(xn3 == bits3) / length(bits3))))
+
 
 figure;
 subplot(2, 1, 2)
@@ -77,6 +104,22 @@ stem(xn)
 title("xn -- recieved bits")
 subplot(2, 1, 1)
 stem(bits)
+title("bits - sent/original bits")
+
+figure;
+subplot(2, 1, 2)
+stem(xn2)
+title("xn -- recieved bits")
+subplot(2, 1, 1)
+stem(bits2)
+title("bits - sent/original bits")
+
+figure;
+subplot(2, 1, 2)
+stem(xn3)
+title("xn -- recieved bits")
+subplot(2, 1, 1)
+stem(bits3)
 title("bits - sent/original bits")
 % pause;
 
@@ -99,6 +142,87 @@ dt = Tp/50; % sampling frequency -- keep this constant
 % creates the time vector and the pulse
 t_sinc = -Tp:dt:Tp;
 sincPulse = sinc(w * t_sinc);
+
+% plot
+figure;
+plot(t_sinc, sincPulse);
+title("Sinc");
+xlabel("Time (s)");
+ylabel("Amplitude");
+fs = 1/dt;
+
+transform = fft(sincPulse);
+f = 0:fs/length(transform):fs-fs/length(transform);
+
+figure;
+subplot(2, 1, 1);
+plot(f, abs(transform));
+title("Fourier Transform");
+xlabel("Frequency (Hz)");
+ylabel("Magnitude");
+
+subplot(2, 1, 2);
+plot(f, angle(transform));
+title("Fourier Transform");
+xlabel("Frequency (Hz)");
+ylabel("Angle");
+
+time = t_sinc;
+pulse = sincPulse;
+
+end
+
+% http://complextoreal.com/wp-content/uploads/2013/01/isi.pdf
+% apparently good, also he referenced this in the instructions so maybe its
+% good
+% https://en.wikipedia.org/wiki/Pulse_shaping
+% sinc, raised cosine, and gaussian commonly used
+function [time, dt, pulse] = rcos_pulse(w, rolloff, Tp)
+
+dt = Tp/50; % sampling frequency -- keep this constant
+
+
+% creates the time vector and the pulse
+t_sinc = -Tp:dt:Tp;
+sincPulse = sinc(w*t_sinc) .* cos(2*pi*rolloff*t_sinc)./(1-(2*rolloff*t_sinc/pi).^2);
+
+% plot
+figure;
+plot(t_sinc, sincPulse);
+title("Sinc");
+xlabel("Time (s)");
+ylabel("Amplitude");
+fs = 1/dt;
+
+transform = fft(sincPulse);
+f = 0:fs/length(transform):fs-fs/length(transform);
+
+figure;
+subplot(2, 1, 1);
+plot(f, abs(transform));
+title("Fourier Transform");
+xlabel("Frequency (Hz)");
+ylabel("Magnitude");
+
+subplot(2, 1, 2);
+plot(f, angle(transform));
+title("Fourier Transform");
+xlabel("Frequency (Hz)");
+ylabel("Angle");
+
+time = t_sinc;
+pulse = sincPulse;
+
+end
+
+function [time, dt, pulse] = gauss(w, bw, Tp)
+
+dt = Tp/50; % sampling frequency -- keep this constant
+
+
+% creates the time vector and the pulse
+t_sinc = -Tp:dt:Tp;
+sincPulse = gauspuls(t_sinc, w, bw);
 
 % plot
 figure;
