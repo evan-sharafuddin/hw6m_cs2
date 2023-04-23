@@ -14,38 +14,43 @@ clear, close all
 
 %% converting image to bits
 close all
-image = imread("amongus_small.jpg");
+image = imread("amongus.jpg");
 image_gray = rgb2gray(image);
 image_gray_small = image_gray;
 image_bin = dec2bin(image_gray_small);
+% convert bits from char to int
+image_bin_int = image_bin - '0';
+% flatten the matrix -- transpose to maintain proper ordering
+image_bin_flat = reshape(image_bin_int', [numel(image_bin_int) 1]);
+% change all bits with value 0 to -1
+image_bin_flat(image_bin_flat == 0) = -1;
 
 % adjusted parameters
-N = numel(image_bin); 
+N = numel(image_bin_flat); 
 Tp = 0.05; % symbol width (centered around zero)
 fb = 1/(2*Tp); % bit rate
 wc1 = 20*2*pi; % frequency of upconverter -- currently 20 Hz
-sigma = 0; % noise parameter 
+sigma = 4; % noise parameter 
 Ts = 0.1; 
 
 [~, dt, pulse] = ppulse(Tp);
-bits = image_bin;
+bits = image_bin_flat;
 [ty, y] = pam(fb, dt, Tp, Ts, N, bits, pulse);
-% upconverted1 = upconvert(wc1, ty, dt, y);
-% [ynoise, noise] = addNoise(upconverted1, sigma);
-% xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, Ts);
+upconverted1 = upconvert(wc1, ty, dt, y);
+[ynoise, noise] = addNoise(upconverted1, sigma);
+xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, Ts, Tp);
 
-[ynoise, noise] = addNoise(y, sigma);
-xhat = matchFilter(pulse, ty, ynoise, N, fb);
+% change values that are -1 back to "bit values" (i.e. 0 and 1)
 
 % recovers the bits
 xn = xhat(xhat ~= 0);
-xn = xn(1:end-1);
+xn(xn == -1) = 0;
 
 bits_reshaped = reshape(xn, length(image_bin(1,:)),length(image_bin(:,1)));
-size(bits_reshaped)
 bits_reshaped(bits_reshaped==-1) = 0;
 bits_reshaped = char(bits_reshaped' + '0');
 recovered_image = reshape(uint8(bin2dec(bits_reshaped)), size(image_gray));
+imshow(image_gray)
 imshow(recovered_image)
 
 %% part 4
@@ -75,7 +80,7 @@ upconverted1 = upconvert(wc1, ty, dt, y);
 
 % downconverts recieved signal, applies matched filter to recover original
 % signal and resolve noise
-xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, Ts);
+xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, Ts, Tp);
 
 %%% use for testing without upconversion
 % [ynoise, noise] = addNoise(y, sigma);
@@ -83,8 +88,8 @@ xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, Ts);
 %%%
 
 % recovers the bits
+% recovers the bits
 xn = xhat(xhat ~= 0);
-
 
 
 % noise level
@@ -170,16 +175,26 @@ end
 function [tout, y] = pam(fb, dt, Tp, Ts, N, bits, pulse)
 tx = 0:dt:(N)*Ts;
 
-% insert the message onto xn, put a spike every Ts seconds
 xn = zeros(size(tx));
-log = mod(tx,Ts) < 0.0001;
-indiv_bits = bits - '0';
-% need to transpose or else reshape orders it wrong
-bits_flat = reshape(indiv_bits', [numel(indiv_bits) 1]);
-% length of log is off for some reason
-numel(bits_flat)
-sum(log)
-xn(log(2:end)) = bits_flat;
+
+% logical indexing approach
+logical = mod(tx,Ts) == 0;
+logical(end) = 0;
+xn(logical) = bits;
+
+
+
+%%% ORIGINAL
+% tx = 0:dt:(N)*Ts;
+
+
+% insert the message onto xn, put a spike every Ts seconds
+% xn = zeros(size(tx));
+% for i=0:N-1
+%     xn(abs(tx - i * Ts) < .0001) = bits(i+1);
+%     
+% end
+
 
 % calculate the convolution, will place the pulse at every spike
 y = conv(xn, pulse);
@@ -190,7 +205,10 @@ figure;
 plot(tout, y);
 title("pam")
 hold on, stem(tout,[zeros(1,50) xn zeros(1,50)])
+%%%
+
 end
+
 
 % will pass in signal not pulse later. pulse is the signal, not a singular
 % pulse
@@ -263,11 +281,11 @@ function downconverted = downconvertNoLowpass(wc, time, dt, upcon_signal)
 end
 
 % calls the above downconverter, then lowpasses it
-function xhat = downconvert(wc, time, dt, signal, pulse, N, Ts)
+function xhat = downconvert(wc, time, dt, signal, pulse, N, Ts,Tp)
     downconverted= downconvertNoLowpass(wc, time, dt, signal);
 
     % takes the downconverted and passes it through a filter.
-    xhat = matchFilter(pulse, time, downconverted, N, Ts);
+    xhat = matchFilter(pulse, time, downconverted, N, Ts,dt,Tp);
     figure;
     plot(xhat);
 
@@ -275,32 +293,25 @@ end
 
 % implements the filter from hw 6.
 %%% GET RID OF FOR LOOP
-function xhat_matched = matchFilter(pulse, tsig, noisySignal, N, Ts)
-    % fplits p, then convolutes with zn
+function xhat_matched = matchFilter(pulse, tsig, noisySignal, N, Ts, dt, Tp)
+
+%%% Original
+      % fplits p, then convolutes with zn
     p_negt = flip(pulse);
     zn = conv(noisySignal, p_negt, "same");
     xhat_matched = zeros(size(noisySignal));
 
-    log = mod(tsig,Ts) < 0.0001;
-    log_pos = zn(log) > 0;
-    log_neg = ~log_pos;
-    xhat_matched(log_pos) = 1;
-    xhat_matched(log_neg) = -1;
-    
-%     for i=0:N-1
-%         index = find(abs(tsig - i* Ts) < .0001);
-%           
-%         if zn(index) > 0
-%             xhat_matched(index) = 1;
-%         else
-%             xhat_matched(index) = -1;
-%         end
-%      end
+    % logical indexing approach -- extracts the locations of each bit
+    buffer = length(0:dt:Tp);
+    index = buffer:Ts/dt:length(xhat_matched)-buffer;
+    xhat_matched(index) = zn(index);
 
-        
-
-    
-
-
+    for idx = index
+        if zn(idx) > 0
+            xhat_matched(idx) = 1;
+        else
+            xhat_matched(idx) = -1;
+        end
+    end 
 
 end
