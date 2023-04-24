@@ -17,12 +17,13 @@ clear, close all
 N = 20; % number of bits
 Tp = 0.05; % symbol width (centered around zero)
 fb = 1/(2*Tp); % bit rate
+base = 10;
 bandwidth = 10;
-wc1 = 20*2*pi; % frequency of upconverter -- currently 20 Hz
-wc2 = (20+bandwidth)*2*pi; % frequency of upconverter -- currently 20 Hz
-wc3 = (20+2*bandwidth)*2*pi; % frequency of upconverter -- currently 20 Hz
+wc1 = base*2*pi; % frequency of upconverter -- currently 20 Hz
+wc2 = (base+bandwidth)*2*pi; % frequency of upconverter -- currently 20 Hz
+wc3 = (base+2*bandwidth)*2*pi; % frequency of upconverter -- currently 20 Hz
 
-wcPulse = 100;
+wcPulse = 1;
 sigma = 0; % noise parameter 
 Ts = 0.1; 
 
@@ -43,16 +44,24 @@ bits3 = 2*((rand(1,N)<0.5)-0.5);
 [ty2, y2] = pam(fb, dt, Tp, Ts, N, bits2, pulse);
 [ty3, y3] = pam(fb, dt, Tp, Ts, N, bits3, pulse);
 
+figure;
+fy1 = fft(y);
+fy2 = fft(y2);
+plot(1:length(fy1), fy2);
+figure;
+plot(1:length(fy2 ), fy2);
+
 % upconvert to desired signal
 upconverted1 = upconvert(wc1, ty, dt, y);
 upconverted2 = upconvert(wc2, ty2, dt, y2);
 upconverted3 = upconvert(wc3, ty3, dt, y3);
+upconvertTotal = upconverted1 + upconverted2 + upconverted3;
 
 % add noise to simulate transmission
-[ynoise, noise] = addNoise(upconverted1, sigma);
-[ynoise2, noise2] = addNoise(upconverted2, sigma);
-[ynoise3, noise3] = addNoise(upconverted3, sigma);
-ytot = ynoise + ynoise2 +ynoise3;
+% [ynoise, noise] = addNoise(upconverted1, sigma);
+% [ynoise2, noise2] = addNoise(upconverted2, sigma);
+% [ynoise3, noise3] = addNoise(upconverted3, sigma);
+[ytot, noise] = addNoise(upconvertTotal, sigma);
 
 figure;
 plot(ytot);
