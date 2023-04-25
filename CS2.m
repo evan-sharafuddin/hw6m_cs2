@@ -181,6 +181,45 @@ pulse = sincPulse;
 
 end
 
+function [time, dt, pulse] = sincSquared_pulse(w, Tp)
+
+dt = Tp/50; % sampling frequency -- keep this constant
+
+% creates the time vector and the pulse
+t_sinc = -Tp:dt:Tp;
+sincPulse = sinc(w * t_sinc).*sinc(w * t_sinc);
+
+% plot
+figure;
+plot(t_sinc, sincPulse);
+title("Sinc");
+xlabel("Time (s)");
+ylabel("Amplitude");
+fs = 1/dt;
+
+transform = fft(sincPulse);
+f = 0:fs/length(transform):fs-fs/length(transform);
+
+figure;
+subplot(2, 1, 1);
+plot(f, abs(transform));
+title("Fourier Transform");
+xlabel("Frequency (Hz)");
+ylabel("Magnitude");
+
+subplot(2, 1, 2);
+plot(f, angle(transform));
+title("Fourier Transform");
+xlabel("Frequency (Hz)");
+ylabel("Angle");
+
+time = t_sinc;
+pulse = sincPulse;
+
+
+end
+
+
 % http://complextoreal.com/wp-content/uploads/2013/01/isi.pdf
 % apparently good, also he referenced this in the instructions so maybe its
 % good
