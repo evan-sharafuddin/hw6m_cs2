@@ -16,8 +16,7 @@ clear, close all
 close all
 image = imread("amongus.jpg");
 image_gray = rgb2gray(image);
-image_gray_small = image_gray;
-image_bin = dec2bin(image_gray_small);
+image_bin = dec2bin(image_gray);
 % convert bits from char to int
 image_bin_int = image_bin - '0';
 % flatten the matrix -- transpose to maintain proper ordering
@@ -30,7 +29,7 @@ N = numel(image_bin_flat);
 Tp = 0.05; % symbol width (centered around zero)
 fb = 1/(2*Tp); % bit rate
 wc1 = 20*2*pi; % frequency of upconverter -- currently 20 Hz
-sigma = 4; % noise parameter 
+sigma = 3; % noise parameter 
 Ts = 0.1; 
 
 [~, dt, pulse] = ppulse(Tp);
@@ -50,8 +49,8 @@ bits_reshaped = reshape(xn, length(image_bin(1,:)),length(image_bin(:,1)));
 bits_reshaped(bits_reshaped==-1) = 0;
 bits_reshaped = char(bits_reshaped' + '0');
 recovered_image = reshape(uint8(bin2dec(bits_reshaped)), size(image_gray));
-imshow(image_gray)
-imshow(recovered_image)
+figure, imshow(image_gray)
+figure, imshow(recovered_image)
 
 %% part 4
 N = 20; % number of bits
