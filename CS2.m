@@ -14,7 +14,7 @@ clear, close all
 
 %% converting image to bits
 close all
-image = imread("amongus.jpg");
+image = imread("amongus_small.jpg");
 image_gray = rgb2gray(image);
 image_bin = dec2bin(image_gray);
 % convert bits from char to int
@@ -54,16 +54,16 @@ figure, imshow(recovered_image)
 
 %% part 4
 N = 20; % number of bits
-Tp = 0.05; % symbol width (centered around zero)
+Tp = 0.02; % symbol width (centered around zero)
 fb = 1/(2*Tp); % bit rate
-base = 10;
+base = 20;
 bandwidth = 10;
 wc1 = base*2*pi; % frequency of upconverter -- currently 20 Hz
-wc2 = (base+bandwidth)*2*pi; % frequency of upconverter -- currently 20 Hz
-wc3 = (base+2*bandwidth)*2*pi; % frequency of upconverter -- currently 20 Hz
+wc2 = (base+bandwidth)*2*pi; % frequency of upconverter -- currently 30 Hz
+wc3 = (base+2*bandwidth)*2*pi; % frequency of upconverter -- currently 40 Hz
 
-wcPulse = 1;
-sigma = 0; % noise parameter 
+wcPulse = 10; % note: sinc() in matlab multiplies your input by pi
+sigma = 1; % noise parameter 
 Ts = 0.1; 
 
 % create symbol
@@ -107,9 +107,9 @@ plot(ytot);
 
 % downconverts recieved signal, applies matched filter to recover original
 % signal and resolve noise
-xhat = downconvert(wc1, ty, dt, ytot, pulse, N, Ts);
-xhat2 = downconvert(wc2, ty, dt, ytot, pulse, N, Ts);
-xhat3 = downconvert(wc3, ty, dt, ytot, pulse, N, Ts);
+xhat = downconvert(wc1, ty, dt, ytot, pulse, N, Ts,Tp);
+xhat2 = downconvert(wc2, ty, dt, ytot, pulse, N, Ts,Tp);
+xhat3 = downconvert(wc3, ty, dt, ytot, pulse, N, Ts,Tp);
 
 %%% use for testing without upconversion
 % [ynoise, noise] = addNoise(y, sigma);
@@ -141,9 +141,9 @@ end
 disp("snr " + snr );
 
 % error
-disp("error rate " + string(1-(sum(xn == bits) / length(bits))))
-disp("error rate 2 " + string(1-(sum(xn2 == bits2) / length(bits2))))
-disp("error rate 3 " + string(1-(sum(xn3 == bits3) / length(bits3))))
+disp("error rate 1: " + string(1-(sum(xn == bits) / length(bits))))
+disp("error rate 2: " + string(1-(sum(xn2 == bits2) / length(bits2))))
+disp("error rate 3: " + string(1-(sum(xn3 == bits3) / length(bits3))))
 
 
 figure;
