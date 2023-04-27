@@ -58,20 +58,20 @@ N = 20; % number of bits
 Tp = 0.05; % symbol width (centered around zero)
 fb = 1/(2*Tp); % bit rate
 base = 20;
-bandwidth = 20;
+bandwidth = 6;
 wc1 = base*2*pi; % frequency of upconverter -- currently 20 Hz
 wc2 = (base+bandwidth)*2*pi; % frequency of upconverter -- currently 30 Hz
 wc3 = (base+2*bandwidth)*2*pi; % frequency of upconverter -- currently 40 Hz
 
-wcPulse = 10; % note: sinc() in matlab multiplies your input by pi
-sigma = 0; % noise parameter 
+wcPulse = 5*2; % note: sinc() in matlab multiplies your input by pi
+sigma = 1; % noise parameter 
 Ts = 0.1; 
 
 % create symbol
 % [t_sinc, dt, sincPulse] = sinc_pulse(2*pi, Tp);
 
 % [t_pulse, dt, pulse] = gauss(.6, wcPulse, Tp);
-[t_pulse, dt, pulse] = sinc_pulse(wcPulse, Tp);
+[t_pulse, dt, pulse] = sqrt_sinc_pulse(wcPulse, Tp);
 
 % create vector of bits (at the moment, this is random)
 bits = 2*((rand(1,N)<0.5)-0.5);
@@ -240,7 +240,7 @@ dt = Tp/50; % sampling frequency -- keep this constant
 
 % creates the time vector and the pulse
 t_sinc = -Tp:dt:Tp;
-sincPulse = sqrt(sinc(w * t_sinc));
+sincPulse = sqrt(sqrt(sqrt(sqrt(sinc(w * t_sinc)))));
 
 % plot
 figure;
