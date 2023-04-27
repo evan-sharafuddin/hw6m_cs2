@@ -57,13 +57,13 @@ N = 20; % number of bits
 Tp = 0.02; % symbol width (centered around zero)
 fb = 1/(2*Tp); % bit rate
 base = 20;
-bandwidth = 10;
+bandwidth = 20;
 wc1 = base*2*pi; % frequency of upconverter -- currently 20 Hz
 wc2 = (base+bandwidth)*2*pi; % frequency of upconverter -- currently 30 Hz
 wc3 = (base+2*bandwidth)*2*pi; % frequency of upconverter -- currently 40 Hz
 
 wcPulse = 10; % note: sinc() in matlab multiplies your input by pi
-sigma = 1; % noise parameter 
+sigma = 0; % noise parameter 
 Ts = 0.1; 
 
 % create symbol
@@ -83,12 +83,6 @@ bits3 = 2*((rand(1,N)<0.5)-0.5);
 [ty2, y2] = pam(fb, dt, Tp, Ts, N, bits2, pulse);
 [ty3, y3] = pam(fb, dt, Tp, Ts, N, bits3, pulse);
 
-figure;
-fy1 = fft(y);
-fy2 = fft(y2);
-plot(1:length(fy1), fy2);
-figure;
-plot(1:length(fy2 ), fy2);
 
 % upconvert to desired signal
 upconverted1 = upconvert(wc1, ty, dt, y);
@@ -190,6 +184,42 @@ dt = Tp/50; % sampling frequency -- keep this constant
 % creates the time vector and the pulse
 t_sinc = -Tp:dt:Tp;
 sincPulse = sinc(w * t_sinc);
+
+% plot
+figure;
+plot(t_sinc, sincPulse);
+title("Sinc");
+xlabel("Time (s)");
+ylabel("Amplitude");
+fs = 1/dt;
+
+transform = fft(sincPulse);
+f = 0:fs/length(transform):fs-fs/length(transform);
+
+figure;
+subplot(2, 1, 1);
+plot(f, abs(transform));
+title("Fourier Transform");
+xlabel("Frequency (Hz)");
+ylabel("Magnitude");
+
+subplot(2, 1, 2);
+plot(f, angle(transform));
+title("Fourier Transform");
+xlabel("Frequency (Hz)");
+ylabel("Angle");
+
+time = t_sinc;
+pulse = sincPulse;
+
+end
+function [time, dt, pulse] = sqrt_sinc_pulse(w, Tp)
+
+dt = Tp/50; % sampling frequency -- keep this constant
+
+% creates the time vector and the pulse
+t_sinc = -Tp:dt:Tp;
+sincPulse = sqrt(sinc(w * t_sinc));
 
 % plot
 figure;
