@@ -53,17 +53,18 @@ figure, imshow(image_gray)
 figure, imshow(recovered_image)
 
 %% part 4
+close all
 N = 20; % number of bits
-Tp = 0.02; % symbol width (centered around zero)
+Tp = 0.05; % symbol width (centered around zero)
 fb = 1/(2*Tp); % bit rate
 base = 20;
-bandwidth = 10;
+bandwidth = 20;
 wc1 = base*2*pi; % frequency of upconverter -- currently 20 Hz
 wc2 = (base+bandwidth)*2*pi; % frequency of upconverter -- currently 30 Hz
 wc3 = (base+2*bandwidth)*2*pi; % frequency of upconverter -- currently 40 Hz
 
 wcPulse = 10; % note: sinc() in matlab multiplies your input by pi
-sigma = 1; % noise parameter 
+sigma = 0; % noise parameter 
 Ts = 0.1; 
 
 % create symbol
@@ -91,11 +92,31 @@ figure;
 plot(1:length(fy2 ), fy2);
 
 % upconvert to desired signal
-upconverted1 = upconvert(wc1, ty, dt, y);
-upconverted2 = upconvert(wc2, ty2, dt, y2);
-upconverted3 = upconvert(wc3, ty3, dt, y3);
+[upconverted1,trans1,f1] = upconvert(wc1, ty, dt, y);
+[upconverted2,trans2,f2] = upconvert(wc2, ty2, dt, y2);
+[upconverted3,trans3,f3] = upconvert(wc3, ty3, dt, y3);
 upconvertTotal = upconverted1 + upconverted2 + upconverted3;
 
+
+
+% fft
+figure;
+subplot(2, 1, 1), hold on
+plot(f1, abs(trans1));
+plot(f2, abs(trans2));
+plot(f3, abs(trans3));
+title("Fourier Transform of upconverted signal");
+xlabel("Frequency (Hz)");
+ylabel("Magnitude");
+hold off
+
+subplot(2, 1, 2), hold on
+plot(f1, angle(trans1));
+plot(f2, angle(trans2));
+plot(f3, angle(trans3));
+title("Fourier Transform of upconverted signal");
+xlabel("Frequency (Hz)");
+ylabel("Angle");
 % add noise to simulate transmission
 % [ynoise, noise] = addNoise(upconverted1, sigma);
 % [ynoise2, noise2] = addNoise(upconverted2, sigma);
@@ -383,7 +404,7 @@ end
 % will pass in signal not pulse later. pulse is the signal, not a singular
 % pulse
 % --- changed pulse to "signal" for more clarity
-function upconverted = upconvert(wc, time, dt, signal)
+function [upconverted,transform,f] = upconvert(wc, time, dt, signal)
     % multiply by a cos to upconvert
     upconverter = cos(wc*time);
     upconverted = signal.*upconverter;
@@ -393,24 +414,24 @@ function upconverted = upconvert(wc, time, dt, signal)
     plot(time, upconverted);
     xlabel('time (s)'), ylabel('y(t)'), title('Upconverted signal');
     
-    % fft
+%     % fft
     fs = 1/dt;
     transform = fft(upconverted);
     f = 0:fs/length(transform):fs-fs/length(transform);
-    
-    
-    figure;
-    subplot(2, 1, 1);
-    plot(f, abs(transform));
-    title("Fourier Transform of upconverted signal");
-    xlabel("Frequency (Hz)");
-    ylabel("Magnitude");
-
-    subplot(2, 1, 2);
-    plot(f, angle(transform));
-    title("Fourier Transform of upconverted signal");
-    xlabel("Frequency (Hz)");
-    ylabel("Angle");
+%     
+%     
+%     figure;
+%     subplot(2, 1, 1);
+%     plot(f, abs(transform));
+%     title("Fourier Transform of upconverted signal");
+%     xlabel("Frequency (Hz)");
+%     ylabel("Magnitude");
+% 
+%     subplot(2, 1, 2);
+%     plot(f, angle(transform));
+%     title("Fourier Transform of upconverted signal");
+%     xlabel("Frequency (Hz)");
+%     ylabel("Angle");
 end
 
 % function to add noise with a signal y and a sigma for noise.
