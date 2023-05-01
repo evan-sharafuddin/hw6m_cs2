@@ -1,77 +1,132 @@
-%% part 2
 clear, close all
 
-% used to test part 2
-% [t_sinc, dt, sincPulse] = sinc_pulse(2*pi, .5);
-
-% TODO: make the other pulse for part 2
-%% part 3
-
-% used to test
-% wc1 = 20*2*pi;
-% upconverted1 = upconvert(wc1, t_sinc, dt, sincPulse);
-% downconverted1 = downconvertNoLowpass(wc1, t_sinc, dt, upconverted1);
-
-%% converting image to bits
+%% three channel rgb communication system
 close all
-image = imread("amongus_small.jpg");
-image_gray = rgb2gray(image);
-image_bin = dec2bin(image_gray);
-% convert bits from char to int
-image_bin_int = image_bin - '0';
-% flatten the matrix -- transpose to maintain proper ordering
-image_bin_flat = reshape(image_bin_int', [numel(image_bin_int) 1]);
-% change all bits with value 0 to -1
-image_bin_flat(image_bin_flat == 0) = -1;
+image = imread("Jason-Trobaugh.jpg");
 
-% adjusted parameters
-N = numel(image_bin_flat); 
+imager = image(:,:,1); imageg = image(:,:,2); imageb = image(:,:,3);
+image_binr = dec2bin(imager);
+image_bing = dec2bin(imageg);
+image_binb = dec2bin(imageb);
+
+% convert bits from char to int
+image_binr_int = image_binr - '0';
+image_bing_int = image_bing - '0';
+image_binb_int = image_binb - '0';
+
+% flatten the matrix -- transpose to maintain proper ordering
+image_binr_flat = reshape(image_binr_int', [numel(image_binr_int) 1]);
+image_bing_flat = reshape(image_bing_int', [numel(image_bing_int) 1]);
+image_binb_flat = reshape(image_binb_int', [numel(image_binb_int) 1]);
+% change all bits with value 0 to -1
+image_binr_flat(image_binr_flat == 0) = -1;
+image_bing_flat(image_bing_flat == 0) = -1;
+image_binb_flat(image_binb_flat == 0) = -1;
+
+% PARAMETERS TO ADJUST
+N = numel(image_binr_flat); 
 Tp = 0.05; % symbol width (centered around zero)
 fb = 1/(2*Tp); % bit rate
-wc1 = 20*2*pi; % frequency of upconverter -- currently 20 Hz
-sigma = 3; % noise parameter 
-Ts = 0.1; 
+sigma = 1; % noise parameter 
+Ts = 1/fb; 
+wcPulse = 10; % note: sinc() in matlab multiplies your input by pi
+base = 20;
+bandwidth = 7;
+wc1 = base*2*pi; % frequency of upconverter -- currently 20 Hz
+wc2 = (base+bandwidth)*2*pi; % frequency of upconverter -- currently 30 Hz
+wc3 = (base+2*bandwidth)*2*pi; % frequency of upconverter -- currently 40 Hz
 
-[~, dt, pulse] = ppulse(Tp);
-bits = image_bin_flat;
-[ty, y] = pam(fb, dt, Tp, Ts, N, bits, pulse);
-upconverted1 = upconvert(wc1, ty, dt, y);
-[ynoise, noise] = addNoise(upconverted1, sigma);
-xhat = downconvert(wc1, ty, dt, ynoise, pulse, N, Ts, Tp);
+[~, dt, pulse] = sinc_pulse(wcPulse, Tp);
+
+
+bitsr = image_binr_flat;
+bitsg = image_bing_flat;
+bitsb = image_binb_flat;
+[ty, yr] = pam(fb, dt, Tp, Ts, N, bitsr, pulse);
+[ty, yg] = pam(fb, dt, Tp, Ts, N, bitsg, pulse);
+[ty, yb] = pam(fb, dt, Tp, Ts, N, bitsb, pulse);
+
+upconverted1 = upconvert(wc1, ty, dt, yr);
+upconverted2 = upconvert(wc2, ty, dt, yg);
+upconverted3 = upconvert(wc3, ty, dt, yb);
+upconvertedTotal = upconverted1 + upconverted2 + upconverted3;
+
+[ynoise, noise] = addNoise(upconvertedTotal, sigma);
+
+xhatr = downconvert(wc1, ty, dt, ynoise, pulse, N, Ts, Tp);
+xhatg = downconvert(wc2, ty, dt, ynoise, pulse, N, Ts, Tp);
+xhatb = downconvert(wc3, ty, dt, ynoise, pulse, N, Ts, Tp);
 
 % change values that are -1 back to "bit values" (i.e. 0 and 1)
 
-% recovers the bits
-xn = xhat(xhat ~= 0);
-xn(xn == -1) = 0;
+xnr = xhatr(xhatr ~= 0);
+xng = xhatg(xhatg ~= 0);
+xnb = xhatb(xhatb ~= 0);
 
-bits_reshaped = reshape(xn, length(image_bin(1,:)),length(image_bin(:,1)));
-bits_reshaped(bits_reshaped==-1) = 0;
-bits_reshaped = char(bits_reshaped' + '0');
-recovered_image = reshape(uint8(bin2dec(bits_reshaped)), size(image_gray));
-figure, imshow(image_gray)
+xnr(xnr == -1) = 0;
+xng(xng == -1) = 0;
+xnb(xnb == -1) = 0;
+
+bits_reshapedr = reshape(xnr, length(image_binr(1,:)),length(image_binr(:,1)));
+bits_reshapedg = reshape(xng, length(image_binr(1,:)),length(image_binr(:,1)));
+bits_reshapedb = reshape(xnb, length(image_binr(1,:)),length(image_binr(:,1)));
+
+bits_reshapedr(bits_reshapedr==-1) = 0;
+bits_reshapedg(bits_reshapedg==-1) = 0;
+bits_reshapedb(bits_reshapedb==-1) = 0;
+
+bits_reshapedr = char(bits_reshapedr' + '0');
+bits_reshapedg = char(bits_reshapedg' + '0');
+bits_reshapedb = char(bits_reshapedb' + '0');
+
+recovered_imager = reshape(uint8(bin2dec(bits_reshapedr)), size(imager));
+recovered_imageg = reshape(uint8(bin2dec(bits_reshapedg)), size(imageg));
+recovered_imageb = reshape(uint8(bin2dec(bits_reshapedb)), size(imageb));
+
+recovered_image = cat(3,recovered_imager,recovered_imageg, recovered_imageb);
+figure, imshow(image)
 figure, imshow(recovered_image)
 
-%% part 4
+%% Three channel communication system with randomized bits
 close all
 N = 20; % number of bits
 Tp = 0.05; % symbol width (centered around zero)
 fb = 1/(2*Tp); % bit rate
 base = 20;
-bandwidth = 6;
+bandwidth = 5; 
 wc1 = base*2*pi; % frequency of upconverter -- currently 20 Hz
 wc2 = (base+bandwidth)*2*pi; % frequency of upconverter -- currently 30 Hz
 wc3 = (base+2*bandwidth)*2*pi; % frequency of upconverter -- currently 40 Hz
 
-wcPulse = 5*2; % note: sinc() in matlab multiplies your input by pi
+wcPulse = 10; % zeros every 0.1 sec
 sigma = 1; % noise parameter 
-Ts = 0.1; 
+Ts = 1/fb; 
 
 % create symbol
-% [t_sinc, dt, sincPulse] = sinc_pulse(2*pi, Tp);
+[t_sinc, dt, pulse] = sinc_pulse(wcPulse, Tp);
 
 % [t_pulse, dt, pulse] = gauss(.6, wcPulse, Tp);
-[t_pulse, dt, pulse] = sqrt_sinc_pulse(wcPulse, Tp);
+% [t_pulse, dt, pulse2] = sqrt_sinc_pulse(wcPulse, Tp);
+
+%%% figures for latex
+% figure, hold on
+% subplot(2,2,1)
+% plot(pulse)
+% title('normal truncated sinc')
+% 
+% subplot(2,2,2)
+% plot(pulse2)
+% title('sinc square rooted multiple times')
+% 
+% subplot(2,2,[3 4])
+% 
+% plot(fftshift(abs(fft(pulse))))
+% hold on
+% plot(fftshift(abs(fft(pulse2))))
+% title('Fourier transforms of pulse shapes')
+% xlim([40 62])
+% legend('fft of normal sinc','fft of square rooted sinc')
+%%%
 
 % create vector of bits (at the moment, this is random)
 bits = 2*((rand(1,N)<0.5)-0.5);
@@ -90,8 +145,6 @@ bits3 = 2*((rand(1,N)<0.5)-0.5);
 [upconverted2,trans2,f2] = upconvert(wc2, ty2, dt, y2);
 [upconverted3,trans3,f3] = upconvert(wc3, ty3, dt, y3);
 upconvertTotal = upconverted1 + upconverted2 + upconverted3;
-
-
 
 % fft
 figure;
@@ -192,6 +245,8 @@ title("bits - sent/original bits")
 function [time, dt, pulse] = ppulse(Tp)
 dt = Tp/50; % sampling frequency -- keep this constant
 
+
+
 time = -Tp:dt:Tp;
 pulse = 1-abs(time./Tp);
 end
@@ -201,6 +256,7 @@ end
 function [time, dt, pulse] = sinc_pulse(w, Tp)
 
 dt = Tp/50; % sampling frequency -- keep this constant
+
 
 % creates the time vector and the pulse
 t_sinc = -Tp:dt:Tp;
@@ -234,13 +290,14 @@ time = t_sinc;
 pulse = sincPulse;
 
 end
+
 function [time, dt, pulse] = sqrt_sinc_pulse(w, Tp)
 
 dt = Tp/50; % sampling frequency -- keep this constant
 
 % creates the time vector and the pulse
 t_sinc = -Tp:dt:Tp;
-sincPulse = sqrt(sqrt(sqrt(sqrt(sinc(w * t_sinc)))));
+sincPulse = sqrt(sqrt(sqrt(sqrt(abs(sinc(w * t_sinc))))));
 
 % plot
 figure;
